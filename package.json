@@ -1,0 +1,54 @@
+{
+  "name": "launcher-redoku",
+  "version": "1.1.1",
+  "description": "Custom branded Minecraft launcher for 1.21.11 Fabric",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "axios": "^1.7.0",
+    "discord-rpc": "^4.0.1",
+    "electron-updater": "^6.8.9",
+    "minecraft-launcher-core": "^3.17.0",
+    "prismarine-nbt": "^2.0.0"
+  },
+  "build": {
+    "appId": "com.redoku.redox",
+    "productName": "RedoX",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "assets/logo.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RedoX",
+      "installerIcon": "assets/logo.ico",
+      "uninstallerIcon": "assets/logo.ico",
+      "license": "assets/license.txt",
+      "runAfterFinish": true
+    },
+    "artifactName": "RedoXSetup_v${version}.exe",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "redoku",
+        "repo": "RedoX"
+      }
+    ]
+  }
+}

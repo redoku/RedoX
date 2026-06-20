@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *; img-src *">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RedoX</title>
+  <link rel="icon" type="image/x-icon" href="assets/logo.ico">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-effect-default">
+
+  <canvas id="bg-effect-canvas"></canvas>
+
+  <!-- ==================== CUSTOM TITLEBAR ==================== -->
+  <div class="custom-titlebar" id="titlebar">
+    <div class="titlebar-branding">
+      <img src="assets/logo.ico" class="titlebar-logo" alt="RedoX">
+      <span class="titlebar-title">RedoX Launcher</span>
+      <span class="titlebar-version">v1.1.1</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="control-btn btn-minimize" id="win-min" title="Свернуть">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <button class="control-btn btn-maximize" id="win-max" title="Развернуть">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="control-btn btn-close" id="win-close" title="Закрыть">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="3" x2="3" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== AMBIENT GLOW (glass mode) ==================== -->
+  <div class="ambient-glow-wrapper">
+    <div class="glow-sphere glow-1"></div>
+    <div class="glow-sphere glow-2"></div>
+  </div>
+
+  <!-- ==================== CONTENT WRAPPER ==================== -->
+  <div class="content-wrapper">
+
+  <!-- ==================== SIDEBAR DOCK ==================== -->
+  <div class="sidebar-dock">
+    <div class="dock-top">
+      <button class="dock-btn active" data-rail="home" title="Главная">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </button>
+      <button class="dock-btn" data-rail="play" title="Мой клиент">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button class="dock-btn" data-rail="addons" title="Дополнения">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      </button>
+      <button class="dock-btn" data-rail="modrinth" title="Modrinth">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </button>
+    </div>
+    <div class="dock-bottom">
+      <button class="dock-btn" id="btn-folder-rail" title="Папка лаунчера">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button class="dock-btn" data-rail="settings" title="Настройки">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="dock-btn dock-avatar" id="btn-rail-account" title="Аккаунт">
+        <span class="dock-avatar-text" id="rail-avatar-text">?</span>
+        <img class="dock-avatar-img hidden" id="rail-avatar-img" alt="">
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== ACCOUNT FLYOUT ==================== -->
+  <div class="account-flyout hidden" id="account-flyout">
+    <div class="flyout-header">
+      <div class="flyout-avatar-wrap" id="flyout-avatar-wrap">
+        <img class="flyout-avatar-img hidden" id="flyout-avatar-img" alt="">
+        <span class="flyout-avatar-letter" id="flyout-avatar-letter">?</span>
+      </div>
+      <div class="flyout-info">
+        <span class="flyout-nickname" id="flyout-nickname">Не выбран</span>
+        <span class="flyout-sub">Текущий аккаунт</span>
+      </div>
+    </div>
+    <div class="flyout-divider"></div>
+    <button class="flyout-btn" id="flyout-change-avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span>Сменить аватар</span>
+    </button>
+  </div>
+
+  <!-- ==================== CONTROL PANEL ==================== -->
+  <div class="control-panel" id="control-panel">
+
+    <div class="cp-section">
+      <div class="cp-section-header">
+        <div class="cp-title">СЕРВЕР</div>
+        <button class="cp-toggle-btn" id="cp-toggle-btn" title="Свернуть панель (Ctrl+B)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+      </div>
+      <div class="server-card">
+        <div class="server-header">
+          <div class="server-dot" id="server-dot"></div>
+          <div class="server-info">
+            <div id="server-status-text" class="server-status">Проверка...</div>
+            <div id="server-details" class="server-details"></div>
+          </div>
+          <div class="server-ping" id="server-ping"></div>
+        </div>
+        <div class="server-name">redoku.bisquit.host</div>
+        <div class="server-season">REDOKU Season III — 1.21.11</div>
+      </div>
+    </div>
+
+    <div class="cp-section">
+      <div class="cp-title">ПРОФИЛИ</div>
+      <div class="cp-row">
+        <div class="sidebar-dropdown" id="home-profile-dropdown" style="flex:1;min-width:0">
+          <div class="sidebar-dropdown-selected" id="sidebar-profile-selected">
+            <span class="sidebar-dropdown-text" id="sidebar-profile-text">1.21.11 RedoX (Fabric)</span>
+            <span class="sidebar-dropdown-arrow">▼</span>
+          </div>
+          <div class="sidebar-dropdown-list" id="sidebar-profile-list"></div>
+        </div>
+        <button id="btn-add-profile" class="btn-plus" title="Новый профиль">+</button>
+      </div>
+    </div>
+
+    <div class="cp-section">
+      <div class="cp-title">АККАУНТ</div>
+      <div class="cp-row">
+        <div class="sidebar-dropdown" id="home-account-dropdown" style="flex:1;min-width:0">
+          <div class="sidebar-dropdown-selected" id="sidebar-account-selected">
+            <span class="sidebar-dropdown-text" id="sidebar-account-text">Нет аккаунтов</span>
+            <span class="sidebar-dropdown-arrow">▼</span>
+          </div>
+          <div class="sidebar-dropdown-list" id="sidebar-account-list"></div>
+        </div>
+        <button id="btn-add-account" class="btn-plus" title="Добавить аккаунт">+</button>
+      </div>
+    </div>
+
+    <button id="btn-play" class="btn-play">
+      <span id="btn-play-text">Играть</span>
+    </button>
+
+    <div id="progress-wrap" class="progress-wrap hidden">
+      <div class="progress-label" id="progress-label">Подготовка...</div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="cp-log-section" id="cp-log-section">
+      <div class="log-header" id="log-header">
+        <span class="log-panel-title" id="log-toggle" style="cursor:pointer">Лог запуска ▾</span>
+        <div class="log-panel-actions">
+          <button id="btn-expand-log" class="btn-plus" title="Развернуть лог">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+          <button id="btn-copy-log" class="btn-plus" title="Копировать лог">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          </button>
+          <button id="btn-clear-log" class="btn-plus btn-plus-close" title="Очистить">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="log-box" id="log-box"></div>
+    </div>
+
+  </div>
+
+  <button class="cp-expand-btn hidden" id="cp-expand-btn" title="Развернуть панель (Ctrl+B)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+
+  <!-- ==================== MAIN CONTENT ==================== -->
+  <div class="main-content">
+
+    <!-- ===== ТАБ "Мой клиент" ===== -->
+    <div class="tab-content" id="tab-play">
+      <div class="mods-header">
+        <span class="mods-title">Установленные моды</span>
+        <div class="mods-header-actions">
+          <button id="btn-open-mods-folder" class="btn-open-folder">
+            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Папка модов</span>
+          </button>
+          <button id="btn-refresh-mods" class="btn-icon" title="Обновить список">
+            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="mods-search-row">
+        <input type="text" id="mods-search-input" class="mods-search-input" placeholder="Поиск по установленным модам...">
+      </div>
+      <div class="mods-drop-zone" id="mods-drop-zone">
+        <div class="mods-list" id="mods-list">
+          <div class="mods-empty">Модов пока нет. Откройте папку и добавьте .jar файлы.</div>
+        </div>
+        <div class="drop-overlay" id="drop-overlay">
+          <div class="drop-text">Перетащите .jar файлы сюда</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ТАБ "Дополнения" ===== -->
+    <div class="tab-content" id="tab-addons">
+      <div class="addons-header">
+        <span class="mods-title">Рекомендованные моды для сервера</span>
+        <span class="addons-hint">Оптимизация, графика и голосовой чат. Distant Horizons и Voxy конфликтуют — нельзя включить оба одновременно.</span>
+      </div>
+      <div class="addons-grid" id="addons-grid"></div>
+    </div>
+
+    <!-- ===== ТАБ "Modrinth" ===== -->
+    <div class="tab-content" id="tab-modrinth">
+      <div class="modrinth-header">
+        <span class="mods-title">Поиск модов на Modrinth</span>
+        <div class="modrinth-profile-info" id="modrinth-profile-info"></div>
+      </div>
+      <div class="modrinth-search-row">
+        <input type="text" id="modrinth-search-input" class="modrinth-search-input" placeholder="Введите название мода...">
+        <button id="modrinth-search-btn" class="btn-icon" title="Поиск">
+          <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button id="modrinth-filter-btn" class="btn-filter" title="Фильтры">
+          <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span>Фильтры</span>
+        </button>
+      </div>
+      <div class="filters-panel" id="modrinth-filters-panel">
+        <div class="filters-grid">
+          <button class="filter-chip" data-tag="optimization">Оптимизация</button>
+          <button class="filter-chip" data-tag="utility">Утилиты</button>
+          <button class="filter-chip" data-tag="technology">Технологии</button>
+          <button class="filter-chip" data-tag="magic">Магия</button>
+          <button class="filter-chip" data-tag="adventure">Приключения</button>
+          <button class="filter-chip" data-tag="decoration">Декорации</button>
+          <button class="filter-chip" data-tag="worldgen">Генерация мира</button>
+          <button class="filter-chip" data-tag="equipment">Броня и Оружие</button>
+          <button class="filter-chip" data-tag="food">Еда и Фермерство</button>
+        </div>
+      </div>
+      <div class="modrinth-grid" id="modrinth-grid"></div>
+      <div class="modrinth-empty" id="modrinth-empty">Введите запрос для поиска модов</div>
+      <div class="modrinth-loading hidden" id="modrinth-loading">Загрузка...</div>
+      <button id="modrinth-load-more" class="btn-load-more hidden">Показать ещё</button>
+    </div>
+
+  <!-- ===== ТАБ "Настройки" ===== -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-page">
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-stab="minecraft">Майнкрафт</button>
+        <button class="settings-tab" data-stab="launcher">Лаунчер</button>
+        <button class="settings-tab" data-stab="appearance">Внешний вид</button>
+        <button class="settings-tab" data-stab="about">О программе</button>
+      </div>
+
+      <!-- ==================== МАЙНКРАФТ ==================== -->
+      <div class="settings-tab-content active" id="stab-minecraft">
+        <div class="settings-grid">
+
+          <div class="settings-card">
+            <div class="card-title">Основные настройки</div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Папка игры</span><span class="set-hint">Директория для хранения данных</span></div>
+              <div class="card-field path-row">
+                <input type="text" id="set-gamepath" class="set-path-input" readonly placeholder="Не выбрана...">
+                <button id="btn-browse-path" class="btn-browse">Обзор</button>
+              </div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Размер окна</span></div>
+              <div class="card-field">
+                <div class="window-size-row">
+                  <input type="number" id="set-width" class="set-num-input" min="640" max="7680" value="854">
+                  <span class="size-x">&times;</span>
+                  <input type="number" id="set-height" class="set-num-input" min="480" max="4320" value="480">
+                </div>
+                <label class="toggle-check" style="margin-top:8px"><input type="checkbox" id="set-fullscreen"><span class="toggle-slider"></span><span class="toggle-label">Полноэкранный режим</span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">Управление версиями</div>
+            <div class="chips-row" style="padding-top:4px">
+              <button class="toggle-chip active" data-filter="filterReleases">Релизы</button>
+              <button class="toggle-chip" data-filter="filterSnapshots">Снапшоты</button>
+              <button class="toggle-chip active" data-filter="filterFabric">Fabric</button>
+              <button class="toggle-chip active" data-filter="filterForge">Forge</button>
+              <button class="toggle-chip" data-filter="filterOld">Старые</button>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">Производительность</div>
+            <div class="ram-section">
+              <div class="ram-header">
+                <span class="set-label">Выделение памяти (ОЗУ)</span>
+                <div class="ram-controls">
+                  <label class="toggle-check"><input type="checkbox" id="set-ram-auto"><span class="toggle-slider"></span><span class="toggle-label">Авто</span></label>
+                  <div class="ram-input-group">
+                    <input type="number" id="ram-value-box" class="ram-value-input" min="1024" max="16384" step="512" value="4096">
+                    <span class="ram-unit">МиБ</span>
+                  </div>
+                </div>
+              </div>
+              <div class="ram-slider-row">
+                <input type="range" id="ram-slider" min="1" max="16" step="1" value="4" class="range-slider">
+                <div class="ram-marks"><span>1</span><span>4</span><span>8</span><span>12</span><span>16</span><span>ГБ</span></div>
+              </div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Видеокарта</span></div>
+              <div class="card-field">
+                <div class="custom-dropdown" id="gpu-dropdown">
+                  <div class="dd-selected" id="gpu-selected">
+                    <span class="dd-text" id="gpu-text">Авто (по умолчанию)</span>
+                    <span class="dd-arrow">▾</span>
+                  </div>
+                  <div class="dd-list" id="gpu-list">
+                    <div class="dd-item active" data-value="auto"><span>Авто (по умолчанию)</span></div>
+                    <div class="dd-item" data-value="discrete"><span>Дискретная (dedicated)</span></div>
+                    <div class="dd-item" data-value="integrated"><span>Встроенная (integrated)</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================== ЛАУНЧЕР ==================== -->
+      <div class="settings-tab-content" id="stab-launcher">
+        <div class="settings-grid">
+
+          <div class="settings-card">
+            <div class="card-title">Поведение</div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Закрыть лаунчер</span></div>
+              <div class="card-field"><label class="toggle-check"><input type="checkbox" id="set-close-on-launch"><span class="toggle-slider"></span><span class="toggle-label">Закрывать после запуска</span></label></div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Лог по умолчанию</span></div>
+              <div class="card-field"><label class="toggle-check"><input type="checkbox" id="set-show-log"><span class="toggle-slider"></span><span class="toggle-label">Показывать при старте</span></label></div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">При запуске игры</span></div>
+              <div class="card-field">
+                <div class="custom-dropdown" id="on-launch-dropdown">
+                  <div class="dd-selected" id="on-launch-selected">
+                    <span class="dd-text" id="on-launch-text">Сворачивать лаунчер</span>
+                    <span class="dd-arrow">▾</span>
+                  </div>
+                  <div class="dd-list" id="on-launch-list">
+                    <div class="dd-item active" data-value="minimize"><span>Сворачивать лаунчер</span></div>
+                    <div class="dd-item" data-value="close"><span>Закрывать лаунчер</span></div>
+                    <div class="dd-item" data-value="none"><span>Ничего не делать</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">Сеть</div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Сервер</span></div>
+              <div class="card-field"><input type="text" id="set-server-address" class="set-path-input" placeholder="ip:port" value="5.83.140.210:25784"></div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Ограничение скорости</span></div>
+              <div class="card-field">
+                <div class="custom-dropdown" id="net-speed-dropdown">
+                  <div class="dd-selected" id="net-speed-selected">
+                    <span class="dd-text" id="net-speed-text">Без ограничений</span>
+                    <span class="dd-arrow">▾</span>
+                  </div>
+                  <div class="dd-list" id="net-speed-list">
+                    <div class="dd-item active" data-value="0"><span>Без ограничений</span></div>
+                    <div class="dd-item" data-value="2"><span>2 МБ/с</span></div>
+                    <div class="dd-item" data-value="5"><span>5 МБ/с</span></div>
+                    <div class="dd-item" data-value="10"><span>10 МБ/с</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">Внешний вид</div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Стекломорфизм</span><span class="set-hint">Премиальный визуальный режим</span></div>
+              <div class="card-field">
+                <label class="toggle-check"><input type="checkbox" id="setting-glass-mode"><span class="toggle-slider"></span><span class="toggle-label">Эффект стекломорфизма</span></label>
+              </div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Моды Modrinth</span><span class="set-hint">Лимит загрузки</span></div>
+              <div class="card-field">
+                <div class="custom-dropdown" id="modrinth-dropdown">
+                  <div class="dd-selected" id="modrinth-selected">
+                    <span class="dd-text" id="modrinth-text">20</span>
+                    <span class="dd-arrow">▾</span>
+                  </div>
+                  <div class="dd-list" id="modrinth-list">
+                    <div class="dd-item" data-value="10"><span>10</span></div>
+                    <div class="dd-item active" data-value="20"><span>20</span></div>
+                    <div class="dd-item" data-value="50"><span>50</span></div>
+                    <div class="dd-item" data-value="100"><span>100</span></div>
+                    <div class="dd-item" data-value="150"><span>150</span></div>
+                    <div class="dd-item" data-value="200"><span>200</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-row">
+              <div class="card-label"><span class="set-label">Размер окна лаунчера</span></div>
+              <div class="card-field">
+                <div class="launcher-size-row">
+                  <div class="custom-dropdown" id="launcher-size-dropdown">
+                    <div class="dd-selected" id="launcher-size-selected">
+                      <span class="dd-text" id="launcher-size-text">Компактный (960×580)</span>
+                      <span class="dd-arrow">▾</span>
+                    </div>
+                    <div class="dd-list" id="launcher-size-list">
+                      <div class="dd-item active" data-value="compact"><span>Компактный (960×580)</span></div>
+                      <div class="dd-item" data-value="hd"><span>Стандартный HD (1280×720)</span></div>
+                      <div class="dd-item" data-value="fullscreen"><span>На весь экран</span></div>
+                      <div class="dd-item" data-value="custom"><span>Пользовательский</span></div>
+                    </div>
+                  </div>
+                  <div class="info-icon-wrap">
+                    <span class="info-icon">i</span>
+                    <div class="info-tooltip">При произвольном изменении размера элементы интерфейса могут отображаться некорректно. Рекомендуется использовать готовые шаблоны.</div>
+                  </div>
+                </div>
+                <div class="launcher-custom-size hidden" id="launcher-custom-size">
+                  <input type="number" id="set-launcher-width" class="set-num-input" min="800" max="3840" value="960" placeholder="Ширина">
+                  <span class="size-x">&times;</span>
+                  <input type="number" id="set-launcher-height" class="set-num-input" min="500" max="2160" value="580" placeholder="Высота">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card settings-card-wide">
+            <div class="card-title">Синхронизация данных</div>
+            <div class="card-hint">Общие данные между профилями (symlinks)</div>
+            <div class="sync-grid">
+              <label class="toggle-check"><input type="checkbox" id="set-sync-options"><span class="toggle-slider"></span><span class="toggle-label">Общие настройки игры</span></label>
+              <label class="toggle-check"><input type="checkbox" id="set-sync-mods"><span class="toggle-slider"></span><span class="toggle-label">Общие моды</span></label>
+              <label class="toggle-check"><input type="checkbox" id="set-sync-saves"><span class="toggle-slider"></span><span class="toggle-label">Общие миры</span></label>
+              <label class="toggle-check"><input type="checkbox" id="set-sync-resourcepacks"><span class="toggle-slider"></span><span class="toggle-label">Общие ресурспаки</span></label>
+              <label class="toggle-check"><input type="checkbox" id="set-sync-shaderpacks"><span class="toggle-slider"></span><span class="toggle-label">Общие шейдеры</span></label>
+              <label class="toggle-check"><input type="checkbox" id="set-sync-servers"><span class="toggle-slider"></span><span class="toggle-label">Общий список серверов</span></label>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================== ВНЕШНИЙ ВИД ==================== -->
+      <div class="settings-tab-content" id="stab-appearance">
+        <div class="settings-grid">
+          <div class="settings-card settings-card-wide">
+            <div class="card-title">Готовые темы</div>
+            <div class="card-hint">Выберите один из встроенных пакетов оформления</div>
+            <div class="appearance-presets-grid" id="appearance-presets-grid"></div>
+          </div>
+          <div class="settings-card settings-card-wide">
+            <div class="card-title">Кастомная настройка</div>
+            <div class="card-hint">Настройте каждый цвет индивидуально и выберите эффект фона</div>
+            <div class="appearance-custom-row">
+              <button class="theme-settings-open-btn" id="btn-appearance-custom">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Открыть настройщик темы</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== О ПРОГРАММЕ ==================== -->
+      <div class="settings-tab-content" id="stab-about">
+        <div class="settings-grid settings-grid-center">
+          <div class="settings-card about-card">
+            <div class="about-logo">RedoX</div>
+            <div class="about-version">Версия 1.1.1</div>
+            <div class="about-subtitle">Кастомный лаунчер Minecraft</div>
+            <div class="about-tech">Electron + minecraft-launcher-core</div>
+            <div class="about-links">
+              <a href="#" class="about-link" id="about-discord">Discord сервера</a>
+              <a href="#" class="about-link" id="about-github">GitHub проекта</a>
+              <a href="#" class="about-link" id="about-update">Проверить обновления</a>
+            </div>
+            <div class="about-update-status hidden" id="about-update-status"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <button id="btn-settings-default" class="btn-footer-gray">По умолчанию</button>
+        <button id="btn-settings-save" class="btn-footer-purple">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+  </div> <!-- /content-wrapper -->
+
+  <!-- ==================== ОВЕРЛЕЙ: Новый профиль ==================== -->
+  <div id="profile-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-head">
+        <span>Новый профиль</span>
+        <button class="overlay-x" id="profile-close"><svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="overlay-body">
+        <input type="text" id="profile-name-input" class="text-input" placeholder="Имя профиля..." maxlength="24">
+        <div class="set-label">Тип загрузчика</div>
+        <div class="pills" id="loader-pills">
+          <button class="pill active" data-loader="vanilla">Vanilla</button>
+          <button class="pill" data-loader="fabric">Fabric</button>
+          <button class="pill" data-loader="forge">Forge</button>
+        </div>
+        <div class="set-label">Версия Minecraft</div>
+        <div class="sidebar-dropdown" id="create-version-dropdown">
+          <div class="sidebar-dropdown-selected" id="create-version-selected">
+            <span class="sidebar-dropdown-text">Выберите версию</span>
+            <span class="sidebar-dropdown-arrow">▼</span>
+          </div>
+          <div class="sidebar-dropdown-list" id="create-version-list"></div>
+        </div>
+        <button id="btn-create-profile" class="btn-create">Создать профиль</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ОВЕРЛЕЙ: Удаление профиля ==================== -->
+  <div id="delete-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-head">
+        <span>Удалить профиль</span>
+        <button class="overlay-x" id="delete-close"><svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="overlay-body">
+        <p id="delete-msg">Вы уверены?</p>
+        <div class="two-btns">
+          <button class="btn-red" id="delete-confirm">Удалить</button>
+          <button class="btn-gray" id="delete-cancel">Отмена</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ОВЕРЛЕЙ: Аккаунт ==================== -->
+  <div id="account-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-head">
+        <span>Добавить аккаунт</span>
+        <button class="overlay-x" id="account-close"><svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="overlay-body">
+        <input type="text" id="account-input" class="text-input" placeholder="Никнейм..." maxlength="16">
+        <button id="account-confirm" class="btn-create">Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== МОДАЛКА ЦВЕТА ==================== -->
+  <div id="color-modal-overlay">
+    <div id="color-modal-window">
+      <div class="color-modal-tabs">
+        <button class="color-tab active" data-tab="palette">Создать цвет</button>
+        <button class="color-tab" data-tab="history">Мои цвета</button>
+      </div>
+
+      <div class="color-modal-body">
+        <div class="color-tab-pane active" id="tab-palette">
+          <div class="picker-sv-area" id="picker-sv-area">
+            <canvas id="picker-sv-canvas" width="280" height="200"></canvas>
+            <div class="picker-sv-cursor" id="picker-sv-cursor"></div>
+          </div>
+          <div class="picker-hue-row">
+            <div class="picker-hue-track" id="picker-hue-track">
+              <div class="picker-hue-thumb" id="picker-hue-thumb"></div>
+            </div>
+          </div>
+          <div class="picker-inputs">
+            <div class="picker-input-group">
+              <label class="picker-input-label">HEX</label>
+              <input type="text" id="picker-hex" class="picker-input" maxlength="7" value="#FF6B35" spellcheck="false">
+            </div>
+            <div class="picker-input-group">
+              <label class="picker-input-label">R</label>
+              <input type="number" id="picker-r" class="picker-input picker-input-sm" min="0" max="255" value="255">
+            </div>
+            <div class="picker-input-group">
+              <label class="picker-input-label">G</label>
+              <input type="number" id="picker-g" class="picker-input picker-input-sm" min="0" max="255" value="107">
+            </div>
+            <div class="picker-input-group">
+              <label class="picker-input-label">B</label>
+              <input type="number" id="picker-b" class="picker-input picker-input-sm" min="0" max="255" value="53">
+            </div>
+          </div>
+          <button id="picker-apply" class="btn-create">Применить</button>
+        </div>
+
+        <div class="color-tab-pane" id="tab-history">
+          <div class="color-history-scroll" id="color-history-list"></div>
+          <div class="color-history-footer">
+            <button id="btn-clear-history" class="btn-red">Очистить историю</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CONTEXT MENU ==================== -->
+  <div id="mod-context-menu" class="context-menu hidden">
+    <div class="context-menu-item" data-action="show-in-folder">
+      <svg class="ctx-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+      <span>Показать в проводнике</span>
+    </div>
+    <div class="context-menu-item" data-action="rename">
+      <svg class="ctx-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+      <span>Переименовать</span>
+    </div>
+    <div class="context-menu-item" data-action="duplicate">
+      <svg class="ctx-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span>Создать копию</span>
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item context-menu-danger" data-action="delete">
+      <svg class="ctx-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      <span>Удалить</span>
+    </div>
+  </div>
+
+  <!-- ==================== МОДАЛКА РАСШИРЕННОЙ ТЕМЫ ==================== -->
+  <div class="theme-settings-overlay" id="theme-settings-overlay">
+    <div class="theme-settings-modal">
+      <div class="theme-settings-head">
+        <h3>Настройка темы</h3>
+        <button class="theme-settings-close" id="theme-settings-close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="theme-settings-body">
+        <div>
+          <div class="theme-section-title">Цвета интерфейса</div>
+          <div class="theme-color-grid">
+            <div class="theme-color-item">
+              <div class="theme-color-swatch" id="swatch-accent" style="background:#FF6B35">
+                <input type="color" id="ts-accent" value="#FF6B35">
+              </div>
+              <div class="theme-color-info">
+                <span class="theme-color-label">Акцент</span>
+                <span class="theme-color-value" id="ts-accent-val">#FF6B35</span>
+              </div>
+            </div>
+            <div class="theme-color-item">
+              <div class="theme-color-swatch" id="swatch-bg" style="background:#121214">
+                <input type="color" id="ts-bg" value="#121214">
+              </div>
+              <div class="theme-color-info">
+                <span class="theme-color-label">Фон</span>
+                <span class="theme-color-value" id="ts-bg-val">#121214</span>
+              </div>
+            </div>
+            <div class="theme-color-item">
+              <div class="theme-color-swatch" id="swatch-panel" style="background:#1e1e22">
+                <input type="color" id="ts-panel" value="#1e1e22">
+              </div>
+              <div class="theme-color-info">
+                <span class="theme-color-label">Панели</span>
+                <span class="theme-color-value" id="ts-panel-val">#1e1e22</span>
+              </div>
+            </div>
+            <div class="theme-color-item">
+              <div class="theme-color-swatch" id="swatch-text" style="background:#e4e4e7">
+                <input type="color" id="ts-text" value="#e4e4e7">
+              </div>
+              <div class="theme-color-info">
+                <span class="theme-color-label">Текст</span>
+                <span class="theme-color-value" id="ts-text-val">#e4e4e7</span>
+              </div>
+            </div>
+            <div class="theme-color-item">
+              <div class="theme-color-swatch" id="swatch-muted" style="background:#a1a5ad">
+                <input type="color" id="ts-muted" value="#a1a5ad">
+              </div>
+              <div class="theme-color-info">
+                <span class="theme-color-label">Приглушённый</span>
+                <span class="theme-color-value" id="ts-muted-val">#a1a5ad</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="theme-section-title">Эффект фона (Canvas)</div>
+          <div class="theme-effect-row">
+            <select class="theme-effect-select" id="ts-effect">
+              <option value="default">Дефолтные круги</option>
+              <option value="snow">Снегопад</option>
+              <option value="stars">Звездопад</option>
+              <option value="galactic">Галактический Алфавит</option>
+              <option value="void">Частицы Края</option>
+              <option value="plexus">Геометрическая сеть</option>
+              <option value="aurora">Северное сияние</option>
+              <option value="fireflies">Магические светлячки</option>
+              <option value="embers">Адские искры</option>
+              <option value="petals">Лепестки Сакуры</option>
+              <option value="bubbles">Пузыри</option>
+              <option value="redstone">Редстоун линии</option>
+              <option value="glitch">Пиксельный глитч</option>
+              <option value="cubes">3D Каркасные Кубы</option>
+              <option value="none">Выключен</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div class="theme-section-title">Сохранить как тему</div>
+          <div class="theme-save-row">
+            <input type="text" id="ts-theme-name" class="theme-name-input" placeholder="Название темы..." maxlength="24">
+            <button class="theme-btn-save-small" id="ts-save-theme">Сохранить</button>
+          </div>
+        </div>
+        <div>
+          <div class="theme-section-title">Мои темы</div>
+          <div class="theme-list" id="theme-list"></div>
+        </div>
+      </div>
+      <div class="theme-settings-footer">
+        <button class="theme-btn-cancel" id="theme-settings-cancel">Отмена</button>
+        <button class="theme-btn-save" id="theme-settings-save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="canvas-effects.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
