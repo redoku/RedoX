@@ -1,6 +1,6 @@
 {
   "name": "launcher-redoku",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Custom branded Minecraft launcher for 1.21.11 Fabric",
   "main": "main.js",
   "scripts": {
