@@ -1,3 +1,8 @@
 node_modules/
 dist/
 *.log
+accounts.json
+custom-profiles.json
+selected-profile.json
+settings.json
+log.html

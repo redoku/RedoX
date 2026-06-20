@@ -78,10 +78,11 @@ const javaDir = path.join(launcherDir, 'java');
 const javaBinPath = path.join(javaDir, 'bin', 'java.exe');
 const instancesDir = path.join(launcherDir, 'instances');
 
-const accountsFilePath = path.join(__dirname, 'accounts.json');
-const settingsFilePath = path.join(__dirname, 'settings.json');
-const selectedProfilePath = path.join(__dirname, 'selected-profile.json');
-const customProfilesPath = path.join(__dirname, 'custom-profiles.json');
+const userDataPath = app.getPath('userData');
+const accountsFilePath = path.join(userDataPath, 'accounts.json');
+const settingsFilePath = path.join(userDataPath, 'settings.json');
+const selectedProfilePath = path.join(userDataPath, 'selected-profile.json');
+const customProfilesPath = path.join(userDataPath, 'custom-profiles.json');
 const modsRegistryPath = path.join(launcherDir, 'mods-registry.json');
 
 const FABRIC_META_URL = 'https://meta.fabricmc.net/v2/versions/loader';
@@ -171,7 +172,7 @@ function updateDRPPlayerCount(online) {
 // ============================================================
 
 function ensureDirectories() {
-  [launcherDir, versionsDir, javaDir, instancesDir].forEach(d => {
+  [userDataPath, launcherDir, versionsDir, javaDir, instancesDir].forEach(d => {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
   });
 }

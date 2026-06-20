@@ -22,6 +22,13 @@
   "build": {
     "appId": "com.redoku.redox",
     "productName": "RedoX",
+    "files": [
+      "**/*",
+      "!accounts.json",
+      "!settings.json",
+      "!selected-profile.json",
+      "!custom-profiles.json"
+    ],
     "directories": {
       "output": "dist"
     },
