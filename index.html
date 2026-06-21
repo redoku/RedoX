@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *; img-src *">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *; img-src * data:">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RedoX</title>
   <link rel="icon" type="image/x-icon" href="assets/logo.ico">
@@ -10,14 +10,12 @@
 </head>
 <body class="bg-effect-default">
 
-  <canvas id="bg-effect-canvas"></canvas>
-
   <!-- ==================== CUSTOM TITLEBAR ==================== -->
   <div class="custom-titlebar" id="titlebar">
     <div class="titlebar-branding">
       <img src="assets/logo.ico" class="titlebar-logo" alt="RedoX">
       <span class="titlebar-title">RedoX Launcher</span>
-      <span class="titlebar-version">v1.1.2</span>
+      <span class="titlebar-version">v1.1.3</span>
     </div>
     <div class="titlebar-controls">
       <button class="control-btn btn-minimize" id="win-min" title="Свернуть">
@@ -179,6 +177,7 @@
 
   <!-- ==================== MAIN CONTENT ==================== -->
   <div class="main-content">
+    <canvas id="bg-effect-canvas"></canvas>
 
     <!-- ===== ТАБ "Мой клиент" ===== -->
     <div class="tab-content" id="tab-play">
@@ -478,7 +477,7 @@
       <div class="settings-tab-content" id="stab-appearance">
         <div class="settings-grid">
           <div class="settings-card settings-card-wide">
-            <div class="card-title">Готовые темы</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><span class="card-title" style="margin-bottom:0;">Готовые темы</span><span class="info-icon-wrap"><span class="info-icon">i</span><span class="info-tooltip">Если у вас слабый процессор, рекомендуется выбирать темы без тяжелых эффектов анимации для экономии ресурсов. Если ваш процессор не нагружается — пользуйтесь любыми темами спокойно.</span></span></div>
             <div class="card-hint">Выберите один из встроенных пакетов оформления</div>
             <div class="appearance-presets-grid" id="appearance-presets-grid"></div>
           </div>

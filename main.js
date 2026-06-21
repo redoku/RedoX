@@ -7,6 +7,7 @@ const { Client } = require('minecraft-launcher-core');
 const Handler = require('minecraft-launcher-core/components/handler');
 const RPC = require('discord-rpc');
 const { autoUpdater } = require('electron-updater');
+const { Worker } = require('worker_threads');
 
 // ============================================================
 // ОФЛАЙН АВТОРИЗАЦИЯ
@@ -171,10 +172,9 @@ function updateDRPPlayerCount(online) {
 // УТИЛИТЫ
 // ============================================================
 
-function ensureDirectories() {
-  [userDataPath, launcherDir, versionsDir, javaDir, instancesDir].forEach(d => {
-    if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
-  });
+async function ensureDirectories() {
+  const dirs = [userDataPath, launcherDir, versionsDir, javaDir, instancesDir];
+  await Promise.all(dirs.map(d => fs.promises.mkdir(d, { recursive: true })));
 }
 
 function readJsonFile(p, def) {
@@ -185,6 +185,18 @@ function readJsonFile(p, def) {
 function writeJsonFile(p, data) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function streamDownload(url, filePath, axiosOpts = {}) {
+  return axios.get(url, { responseType: 'stream', timeout: 120000, maxRedirects: 5, ...axiosOpts })
+    .then(resp => new Promise((resolve, reject) => {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      const ws = fs.createWriteStream(filePath);
+      resp.data.pipe(ws);
+      ws.on('finish', () => resolve(true));
+      ws.on('error', reject);
+      resp.data.on('error', reject);
+    }));
 }
 
 // ============================================================
@@ -228,71 +240,75 @@ function saveSettings(settings) {
 
 const sharedAssetsDir = path.join(launcherDir, '_shared_assets');
 
-function ensureSharedAssets() {
-  fs.mkdirSync(sharedAssetsDir, { recursive: true });
-  fs.mkdirSync(path.join(sharedAssetsDir, 'saves'), { recursive: true });
-  fs.mkdirSync(path.join(sharedAssetsDir, 'mods'), { recursive: true });
-  fs.mkdirSync(path.join(sharedAssetsDir, 'resourcepacks'), { recursive: true });
-  fs.mkdirSync(path.join(sharedAssetsDir, 'shaderpacks'), { recursive: true });
+async function ensureSharedAssets() {
+  const dirs = [
+    sharedAssetsDir,
+    path.join(sharedAssetsDir, 'saves'),
+    path.join(sharedAssetsDir, 'mods'),
+    path.join(sharedAssetsDir, 'resourcepacks'),
+    path.join(sharedAssetsDir, 'shaderpacks')
+  ];
+  await Promise.all(dirs.map(d => fs.promises.mkdir(d, { recursive: true })));
   const optSrc = path.join(sharedAssetsDir, 'options.txt');
-  if (!fs.existsSync(optSrc)) fs.writeFileSync(optSrc, '', 'utf8');
+  try { await fs.promises.access(optSrc); } catch { await fs.promises.writeFile(optSrc, '', 'utf8'); }
   const srvSrc = path.join(sharedAssetsDir, 'servers.dat');
-  if (!fs.existsSync(srvSrc)) fs.writeFileSync(srvSrc, '', 'binary');
+  try { await fs.promises.access(srvSrc); } catch { await fs.promises.writeFile(srvSrc, '', 'binary'); }
 }
 
 function safeSend(channel, data) {
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data); } catch {}
 }
 
-function isSymlinkOrJunction(p) {
+async function isSymlinkOrJunction(p) {
   try {
-    const stat = fs.lstatSync(p);
+    const stat = await fs.promises.lstat(p);
     return stat.isSymbolicLink();
   } catch { return false; }
 }
 
-function isHardlink(p) {
+async function isHardlink(p) {
   try {
-    const stat = fs.lstatSync(p);
+    const stat = await fs.promises.lstat(p);
     return stat.nlink > 1;
   } catch { return false; }
 }
 
-function moveDirContents(srcDir, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
-  for (const entry of fs.readdirSync(srcDir)) {
+async function moveDirContents(srcDir, destDir) {
+  await fs.promises.mkdir(destDir, { recursive: true });
+  const entries = await fs.promises.readdir(srcDir);
+  for (const entry of entries) {
     const srcPath = path.join(srcDir, entry);
     const destPath = path.join(destDir, entry);
-    const stat = fs.lstatSync(srcPath);
+    const stat = await fs.promises.lstat(srcPath);
     if (stat.isDirectory()) {
-      if (isSymlinkOrJunction(srcPath)) {
+      if (await isSymlinkOrJunction(srcPath)) {
         const target = fs.readlinkSync(srcPath);
-        fs.rmSync(srcPath, { recursive: true, force: true });
+        await fs.promises.rm(srcPath, { recursive: true, force: true });
         fs.symlinkSync(target, destPath, 'junction');
       } else {
-        moveDirContents(srcPath, destPath);
-        fs.rmSync(srcPath, { recursive: true, force: true });
+        await moveDirContents(srcPath, destPath);
+        await fs.promises.rm(srcPath, { recursive: true, force: true });
       }
     } else {
-      fs.copyFileSync(srcPath, destPath);
-      fs.rmSync(srcPath, { force: true });
+      await fs.promises.copyFile(srcPath, destPath);
+      await fs.promises.rm(srcPath, { force: true });
     }
   }
 }
 
-function applySharedSettings(instanceName) {
+async function applySharedSettings(instanceName) {
   const settings = loadSettings();
   const instanceDir = getInstanceDir(instanceName);
 
-  ensureSharedAssets();
+  await ensureSharedAssets();
 
   // === Общие миры (saves) ===
   try {
     const savesPath = path.join(instanceDir, 'saves');
     if (settings.syncSaves) {
-      if (fs.existsSync(savesPath) && !isSymlinkOrJunction(savesPath)) {
+      if (fs.existsSync(savesPath) && !(await isSymlinkOrJunction(savesPath))) {
         const sharedSaves = path.join(sharedAssetsDir, 'saves');
-        moveDirContents(savesPath, sharedSaves);
+        await moveDirContents(savesPath, sharedSaves);
         fs.rmSync(savesPath, { recursive: true, force: true });
         fs.symlinkSync(sharedSaves, savesPath, 'junction');
         safeSend('launch-progress', { status: 'sync', message: 'Синхронизация: общие миры подключены' });
@@ -300,7 +316,7 @@ function applySharedSettings(instanceName) {
         fs.symlinkSync(path.join(sharedAssetsDir, 'saves'), savesPath, 'junction');
       }
     } else {
-      if (isSymlinkOrJunction(savesPath)) {
+      if (await isSymlinkOrJunction(savesPath)) {
         const sharedSaves = path.join(sharedAssetsDir, 'saves');
         fs.rmSync(savesPath, { force: true });
         fs.mkdirSync(savesPath, { recursive: true });
@@ -322,9 +338,9 @@ function applySharedSettings(instanceName) {
   try {
     const modsPath = path.join(instanceDir, 'mods');
     if (settings.syncMods) {
-      if (fs.existsSync(modsPath) && !isSymlinkOrJunction(modsPath)) {
+      if (fs.existsSync(modsPath) && !(await isSymlinkOrJunction(modsPath))) {
         const sharedMods = path.join(sharedAssetsDir, 'mods');
-        moveDirContents(modsPath, sharedMods);
+        await moveDirContents(modsPath, sharedMods);
         fs.rmSync(modsPath, { recursive: true, force: true });
         fs.symlinkSync(sharedMods, modsPath, 'junction');
         safeSend('launch-progress', { status: 'sync', message: 'Синхронизация: общие моды подключены' });
@@ -332,7 +348,7 @@ function applySharedSettings(instanceName) {
         fs.symlinkSync(path.join(sharedAssetsDir, 'mods'), modsPath, 'junction');
       }
     } else {
-      if (isSymlinkOrJunction(modsPath)) {
+      if (await isSymlinkOrJunction(modsPath)) {
         const sharedMods = path.join(sharedAssetsDir, 'mods');
         fs.rmSync(modsPath, { force: true });
         fs.mkdirSync(modsPath, { recursive: true });
@@ -354,10 +370,10 @@ function applySharedSettings(instanceName) {
   try {
     const optPath = path.join(instanceDir, 'options.txt');
     const sharedOpt = path.join(sharedAssetsDir, 'options.txt');
-    ensureSharedAssets();
+    await ensureSharedAssets();
 
     if (settings.syncOptions) {
-      if (fs.existsSync(optPath) && !isHardlink(optPath) && !isSymlinkOrJunction(optPath)) {
+      if (fs.existsSync(optPath) && !(await isHardlink(optPath)) && !(await isSymlinkOrJunction(optPath))) {
         fs.copyFileSync(optPath, sharedOpt);
         fs.rmSync(optPath, { force: true });
         fs.linkSync(sharedOpt, optPath);
@@ -366,7 +382,7 @@ function applySharedSettings(instanceName) {
         fs.linkSync(sharedOpt, optPath);
       }
     } else {
-      if (isHardlink(optPath)) {
+      if (await isHardlink(optPath)) {
         fs.copyFileSync(optPath, sharedOpt);
         fs.rmSync(optPath, { force: true });
         fs.writeFileSync(optPath, fs.readFileSync(sharedOpt), 'utf8');
@@ -381,9 +397,9 @@ function applySharedSettings(instanceName) {
   try {
     const rpPath = path.join(instanceDir, 'resourcepacks');
     if (settings.syncResourcepacks) {
-      if (fs.existsSync(rpPath) && !isSymlinkOrJunction(rpPath)) {
+      if (fs.existsSync(rpPath) && !(await isSymlinkOrJunction(rpPath))) {
         const sharedRp = path.join(sharedAssetsDir, 'resourcepacks');
-        moveDirContents(rpPath, sharedRp);
+        await moveDirContents(rpPath, sharedRp);
         fs.rmSync(rpPath, { recursive: true, force: true });
         fs.symlinkSync(sharedRp, rpPath, 'junction');
         safeSend('launch-progress', { status: 'sync', message: 'Синхронизация: общие ресурспаки подключены' });
@@ -391,7 +407,7 @@ function applySharedSettings(instanceName) {
         fs.symlinkSync(path.join(sharedAssetsDir, 'resourcepacks'), rpPath, 'junction');
       }
     } else {
-      if (isSymlinkOrJunction(rpPath)) {
+      if (await isSymlinkOrJunction(rpPath)) {
         const sharedRp = path.join(sharedAssetsDir, 'resourcepacks');
         fs.rmSync(rpPath, { force: true });
         fs.mkdirSync(rpPath, { recursive: true });
@@ -413,9 +429,9 @@ function applySharedSettings(instanceName) {
   try {
     const spPath = path.join(instanceDir, 'shaderpacks');
     if (settings.syncShaderpacks) {
-      if (fs.existsSync(spPath) && !isSymlinkOrJunction(spPath)) {
+      if (fs.existsSync(spPath) && !(await isSymlinkOrJunction(spPath))) {
         const sharedSp = path.join(sharedAssetsDir, 'shaderpacks');
-        moveDirContents(spPath, sharedSp);
+        await moveDirContents(spPath, sharedSp);
         fs.rmSync(spPath, { recursive: true, force: true });
         fs.symlinkSync(sharedSp, spPath, 'junction');
         safeSend('launch-progress', { status: 'sync', message: 'Синхронизация: общие шейдеры подключены' });
@@ -423,7 +439,7 @@ function applySharedSettings(instanceName) {
         fs.symlinkSync(path.join(sharedAssetsDir, 'shaderpacks'), spPath, 'junction');
       }
     } else {
-      if (isSymlinkOrJunction(spPath)) {
+      if (await isSymlinkOrJunction(spPath)) {
         const sharedSp = path.join(sharedAssetsDir, 'shaderpacks');
         fs.rmSync(spPath, { force: true });
         fs.mkdirSync(spPath, { recursive: true });
@@ -445,10 +461,10 @@ function applySharedSettings(instanceName) {
   try {
     const srvPath = path.join(instanceDir, 'servers.dat');
     const sharedSrv = path.join(sharedAssetsDir, 'servers.dat');
-    ensureSharedAssets();
+    await ensureSharedAssets();
 
     if (settings.syncServers) {
-      if (fs.existsSync(srvPath) && !isHardlink(srvPath) && !isSymlinkOrJunction(srvPath)) {
+      if (fs.existsSync(srvPath) && !(await isHardlink(srvPath)) && !(await isSymlinkOrJunction(srvPath))) {
         fs.copyFileSync(srvPath, sharedSrv);
         fs.rmSync(srvPath, { force: true });
         fs.linkSync(sharedSrv, srvPath);
@@ -457,7 +473,7 @@ function applySharedSettings(instanceName) {
         fs.linkSync(sharedSrv, srvPath);
       }
     } else {
-      if (isHardlink(srvPath)) {
+      if (await isHardlink(srvPath)) {
         fs.copyFileSync(srvPath, sharedSrv);
         fs.rmSync(srvPath, { force: true });
         fs.writeFileSync(srvPath, fs.readFileSync(sharedSrv));
@@ -734,8 +750,7 @@ async function downloadRecommendedMod(modId, instanceName) {
   const md = getModsDir(instanceName);
   fs.mkdirSync(md, { recursive: true });
   const fp = path.join(md, file.filename);
-  const resp = await axios.get(file.url, { responseType: 'arraybuffer', timeout: 120000, maxRedirects: 5 });
-  fs.writeFileSync(fp, Buffer.from(resp.data));
+  await streamDownload(file.url, fp, { timeout: 120000 });
   reg[key] = file.filename;
   writeJsonFile(modsRegistryPath, reg);
   return file.filename;
@@ -774,7 +789,14 @@ async function ensureJava21() {
   const w = fs.createWriteStream(zp);
   resp.data.pipe(w);
   await new Promise((res, rej) => { w.on('finish', res); w.on('error', rej); resp.data.on('error', rej); });
-  require('adm-zip')(zp).extractAllTo(javaDir, true);
+  await new Promise((resolve, reject) => {
+    const worker = new Worker(
+      `const AdmZip = require('adm-zip'); new AdmZip('${zp.replace(/\\/g, '\\\\')}').extractAllTo('${javaDir.replace(/\\/g, '\\\\')}', true);`,
+      { eval: true }
+    );
+    worker.on('message', resolve);
+    worker.on('error', (e) => { worker.terminate(); reject(e); });
+  });
   try { fs.unlinkSync(zp); } catch (e) {}
   for (const d of fs.readdirSync(javaDir).filter(f => f.startsWith('jdk') || f.startsWith('jre'))) {
     const c = path.join(javaDir, d, 'bin', 'java.exe'); if (fs.existsSync(c)) return c;
@@ -849,13 +871,9 @@ function downloadFileWithRetry(url, fp, retries = 3) {
   return new Promise(async (resolve) => {
     for (let i = 0; i < retries; i++) {
       try {
-        const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 60000, maxRedirects: 5 });
-        if (r.status === 200 && r.data?.byteLength > 0) {
-          fs.mkdirSync(path.dirname(fp), { recursive: true });
-          fs.writeFileSync(fp, Buffer.from(r.data));
-          resolve(true);
-          return;
-        }
+        await streamDownload(url, fp, { timeout: 60000 });
+        const stat = fs.statSync(fp);
+        if (stat.size > 0) { resolve(true); return; }
       } catch (e) {
         if (fs.existsSync(fp)) try { fs.unlinkSync(fp); } catch (x) {}
         if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)));
@@ -875,7 +893,7 @@ async function downloadAllAssets(mp, sendProgress) {
     if (!(await downloadFileWithRetry(mp.assetIndex.url, ip, 5))) throw new Error('Не удалось скачать индекс ассетов');
   }
   if (!fs.existsSync(ip)) return;
-  const index = JSON.parse(fs.readFileSync(ip, 'utf8'));
+  const index = JSON.parse(await fs.promises.readFile(ip, 'utf8'));
   const entries = Object.entries(index.objects || {});
   const total = entries.length;
   if (!total) return;
@@ -928,8 +946,10 @@ function openLogWindow() {
   logWindow.on('closed', () => { logWindow = null; if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('log-window-closed'); });
 }
 
+let activeClient = null;
+
 async function launchGame(username, profileData, selectedModIds) {
-  ensureDirectories();
+  await ensureDirectories();
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   const { version, loader, instanceName } = profileData;
@@ -940,7 +960,7 @@ async function launchGame(username, profileData, selectedModIds) {
 
   const settings = loadSettings();
 
-  try { applySharedSettings(instanceName); } catch (e) {
+  try { await applySharedSettings(instanceName); } catch (e) {
     sendProgress({ status: 'sync-error', message: `Ошибка синхронизации: ${e.message}` });
   }
 
@@ -985,9 +1005,7 @@ async function launchGame(username, profileData, selectedModIds) {
         if (!fs.existsSync(multiOfflineFixPath)) {
           sendProgress({ status: 'mods', message: 'Установка фикса мультиплеера для 1.16.5...' });
           try {
-            const fixModResp = await axios.get(multiOfflineFixUrl, { responseType: 'arraybuffer', timeout: 30000 });
-            fs.mkdirSync(modsDir, { recursive: true });
-            fs.writeFileSync(multiOfflineFixPath, Buffer.from(fixModResp.data));
+            await streamDownload(multiOfflineFixUrl, multiOfflineFixPath, { timeout: 30000 });
             sendProgress({ status: 'mods', message: 'Фикс мультиплеера установлен' });
           } catch (fixErr) {
             sendProgress({ status: 'mods', message: `Не удалось скачать фикс: ${fixErr.message}` });
@@ -1038,7 +1056,9 @@ async function launchGame(username, profileData, selectedModIds) {
       customArgs
     };
 
+    if (activeClient) { activeClient.removeAllListeners(); activeClient = null; }
     const client = new Client();
+    activeClient = client;
     client.on('debug', (m) => sendProgress({ status: 'debug', message: m }));
     client.on('data', (d) => sendProgress({ status: 'data', message: d.toString() }));
     client.on('progress', (p) => sendProgress({ status: 'progress', ...p }));
@@ -1048,6 +1068,7 @@ async function launchGame(username, profileData, selectedModIds) {
     });
     client.on('close', (code) => {
       gameRunning = false;
+      if (activeClient === client) { client.removeAllListeners(); activeClient = null; }
       sendProgress({ status: 'closed', exitCode: code });
       updateDiscordPresence('menu');
       if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
@@ -1197,7 +1218,7 @@ ipcMain.on('change-launcher-size', (e, mode, w, h) => {
 
 ipcMain.handle('apply-shared-settings', async (e, instanceName) => {
   try {
-    applySharedSettings(instanceName);
+    await applySharedSettings(instanceName);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -1358,8 +1379,7 @@ async function downloadModrinthMod(projectId, instanceName, version, loader) {
   fs.mkdirSync(modsDir, { recursive: true });
   const filePath = path.join(modsDir, file.filename);
 
-  const resp = await axios.get(file.url, { responseType: 'arraybuffer', timeout: 120000, maxRedirects: 5 });
-  fs.writeFileSync(filePath, Buffer.from(resp.data));
+  await streamDownload(file.url, filePath, { timeout: 120000 });
 
   const manifest = getModManifest(instanceName);
   manifest[projectId] = { fileName: file.filename, modName: modVersion.name || file.filename, source: 'modrinth' };
@@ -1431,7 +1451,7 @@ ipcMain.handle('drop-mods', async (e, instanceName, filePaths) => {
 ipcMain.handle('open-log-window', () => openLogWindow());
 ipcMain.handle('send-log-line', (e, line) => { logHistory.push(line); if (logHistory.length > 500) logHistory.shift(); sendToLogWindow('log-line', line); });
 ipcMain.handle('clear-log-history', () => { logHistory.length = 0; sendToLogWindow('log-clear', null); });
-ipcMain.handle('get-log-history', () => { return mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.send('request-log-history') : []; });
+ipcMain.handle('get-log-history', () => { return logHistory; });
 
 // ============================================================
 // КАСТОМНЫЙ ТАЙТЛБАР: управление окном
@@ -1449,7 +1469,7 @@ ipcMain.handle('window-is-maximized', () => { return mainWindow && !mainWindow.i
 // ОКНО
 // ============================================================
 
-function createWindow() {
+async function createWindow() {
   const settings = loadSettings();
   const lsm = settings.launcherSize || 'compact';
   let winW = 960, winH = 580;
@@ -1465,8 +1485,9 @@ function createWindow() {
     autoHideMenuBar: true, backgroundColor: '#121214'
   });
   mainWindow.on('close', () => {
-    if (rpc) { rpc.destroy().catch(() => {}); }
-    app.exit(0);
+    if (rpc) { rpc.destroy().catch(() => {}); rpc = null; }
+    if (serverTimer) { clearInterval(serverTimer); serverTimer = null; }
+    app.quit();
   });
   mainWindow.on('maximize', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximize-change', true); });
   mainWindow.on('unmaximize', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximize-change', false); });
@@ -1476,7 +1497,9 @@ function createWindow() {
   if (lsm === 'fullscreen') {
     mainWindow.once('ready-to-show', () => { mainWindow.maximize(); });
   }
+}
 
+function initAutoUpdater() {
   autoUpdater.logger = console;
   autoUpdater.on('checking-for-update', () => console.log('[UPDATER] Проверка обновлений...'));
   autoUpdater.on('update-available', (info) => console.log('[UPDATER] Доступно обновление:', info.version));
@@ -1490,11 +1513,12 @@ function createWindow() {
   autoUpdater.checkForUpdatesAndNotify();
 }
 
-app.whenReady().then(() => {
-  ensureDirectories();
-  createWindow();
+app.whenReady().then(async () => {
+  await ensureDirectories();
+  await createWindow();
   initDiscordRPC();
-  app.on('activate', () => { if (!mainWindow || mainWindow.isDestroyed()) createWindow(); else mainWindow.show(); });
+  initAutoUpdater();
+  app.on('activate', async () => { if (!mainWindow || mainWindow.isDestroyed()) await createWindow(); else mainWindow.show(); });
 });
 
 ipcMain.handle('check-github-update', async () => {
@@ -1507,6 +1531,11 @@ ipcMain.handle('check-github-update', async () => {
   const currentVersion = app.getVersion();
   return { latestVersion, currentVersion, downloadUrl: latest.html_url, body: latest.body || '' };
 });
+app.on('before-quit', () => {
+  if (serverTimer) { clearInterval(serverTimer); serverTimer = null; }
+  if (rpc) { rpc.destroy().catch(() => {}); rpc = null; }
+});
+
 app.on('window-all-closed', () => {
   logWindow = null;
   if (rpc) { rpc.destroy().catch(() => {}); }

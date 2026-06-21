@@ -1,4 +1,6 @@
 class CanvasEffectManager {
+  static _whiteDot = null;
+
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
@@ -18,31 +20,129 @@ class CanvasEffectManager {
     this._glitchCells = [];
     this._cubes = [];
 
+    this._accentColor = { r: 0, g: 0, b: 0, hex: '' };
+    this._mutedColor = '';
+    this._lastFrameTime = 0;
+    this._cubeVerts = Array.from({ length: 8 }, () => [0, 0, 0]);
+    this._cubeProjected = Array.from({ length: 8 }, () => ({ x: 0, y: 0, scale: 0 }));
+    this._whiteDot = null;
+    this._accentDot = null;
+    this._accentGlow = null;
+    this._emberGlow = null;
+    this._charCache = new Map();
+
     this._resizeHandler = null;
     this._visHandler = null;
     this._mouseHandler = null;
     this._clickHandler = null;
+    this._lclick = false;
     this._rclick = false;
     this._rclickDownHandler = null;
     this._rclickUpHandler = null;
+    this._contextMenuHandler = null;
   }
 
   // ===================================================================
   // COLOR HELPERS
   // ===================================================================
 
-  getAccentRGB() {
+  _refreshAccentColor() {
     const hex = getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim();
-    const h = hex.replace('#', '');
-    return {
-      r: parseInt(h.substring(0, 2), 16),
-      g: parseInt(h.substring(2, 4), 16),
-      b: parseInt(h.substring(4, 6), 16)
-    };
+    if (hex !== this._accentColor.hex) {
+      this._accentColor.hex = hex;
+      const h = hex.replace('#', '');
+      this._accentColor.r = parseInt(h.substring(0, 2), 16);
+      this._accentColor.g = parseInt(h.substring(2, 4), 16);
+      this._accentColor.b = parseInt(h.substring(4, 6), 16);
+      this._buildTextures();
+    }
+  }
+
+  _refreshMutedColor() {
+    this._mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  }
+
+  _buildTextures() {
+    const c = this._accentColor;
+
+    if (!CanvasEffectManager._whiteDot) {
+      const wd = document.createElement('canvas');
+      wd.width = wd.height = 8;
+      const wctx = wd.getContext('2d');
+      wctx.beginPath();
+      wctx.arc(4, 4, 3, 0, Math.PI * 2);
+      wctx.fillStyle = '#fff';
+      wctx.fill();
+      CanvasEffectManager._whiteDot = wd;
+    }
+    this._whiteDot = CanvasEffectManager._whiteDot;
+
+    if (!this._accentDot) {
+      this._accentDot = document.createElement('canvas');
+      this._accentDot.width = this._accentDot.height = 8;
+    }
+    const adctx = this._accentDot.getContext('2d');
+    adctx.clearRect(0, 0, 8, 8);
+    adctx.beginPath();
+    adctx.arc(4, 4, 3, 0, Math.PI * 2);
+    adctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+    adctx.fill();
+
+    const G = 32;
+    if (!this._accentGlow) {
+      this._accentGlow = document.createElement('canvas');
+      this._accentGlow.width = this._accentGlow.height = G;
+    }
+    const gctx = this._accentGlow.getContext('2d');
+    gctx.clearRect(0, 0, G, G);
+    const gr = gctx.createRadialGradient(G / 2, G / 2, 0, G / 2, G / 2, G / 2);
+    gr.addColorStop(0, `rgba(${c.r},${c.g},${c.b},1)`);
+    gr.addColorStop(0.35, `rgba(${c.r},${c.g},${c.b},0.5)`);
+    gr.addColorStop(1, 'transparent');
+    gctx.fillStyle = gr;
+    gctx.beginPath();
+    gctx.arc(G / 2, G / 2, G / 2, 0, Math.PI * 2);
+    gctx.fill();
+
+    if (!this._emberGlow) {
+      this._emberGlow = document.createElement('canvas');
+      this._emberGlow.width = this._emberGlow.height = G;
+    }
+    const er = Math.min(255, c.r + 40);
+    const eg = Math.min(255, Math.round(c.g * 0.5 + 60));
+    const eb = Math.round(c.b * 0.2);
+    const ectx = this._emberGlow.getContext('2d');
+    ectx.clearRect(0, 0, G, G);
+    const egr = ectx.createRadialGradient(G / 2, G / 2, 0, G / 2, G / 2, G / 2);
+    egr.addColorStop(0, `rgba(${er},${eg},${eb},1)`);
+    egr.addColorStop(0.35, `rgba(${er},${eg},${eb},0.5)`);
+    egr.addColorStop(1, 'transparent');
+    ectx.fillStyle = egr;
+    ectx.beginPath();
+    ectx.arc(G / 2, G / 2, G / 2, 0, Math.PI * 2);
+    ectx.fill();
+
+    this._charCache.clear();
+    const chars = 'ᚠᚡᚢᚣᚤᚥᚦᚧᚨᚩᚪᚫᚬᚭᚮᚯᚰᚱᚲᚳᚴᚵᚶᚷᚸᚹᚺᚻᚼᚽᚾᚿᛀᛁᛂᛃᛄᛅᛆᛇᛈᛉᛊᛋᛌᛍᛎᛏᛐᛑᛒᛓᛔᛕᛖᛗᛘᛙᛚᛛᛜᛝᛞᛟ';
+    for (const ch of chars) {
+      const oc = document.createElement('canvas');
+      oc.width = oc.height = 32;
+      const octx = oc.getContext('2d');
+      octx.font = '20px monospace';
+      octx.textAlign = 'center';
+      octx.textBaseline = 'middle';
+      octx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+      octx.fillText(ch, 16, 16);
+      this._charCache.set(ch, oc);
+    }
+  }
+
+  getAccentRGB() {
+    return this._accentColor;
   }
 
   rgba(alpha) {
-    const c = this.getAccentRGB();
+    const c = this._accentColor;
     return `rgba(${c.r},${c.g},${c.b},${alpha})`;
   }
 
@@ -141,12 +241,12 @@ class CanvasEffectManager {
     document.body.classList.add('bg-effect-' + name);
 
     if (!this.canvas || !this.ctx) return;
-    this.canvas.width = window.innerWidth - 65;
-    this.canvas.height = window.innerHeight;
+    this.canvas.width = this.canvas.clientWidth || this.canvas.parentElement.clientWidth;
+    this.canvas.height = this.canvas.clientHeight || this.canvas.parentElement.clientHeight;
 
     this._resizeHandler = () => {
-      this.canvas.width = window.innerWidth - 65;
-      this.canvas.height = window.innerHeight;
+      this.canvas.width = this.canvas.clientWidth || this.canvas.parentElement.clientWidth;
+      this.canvas.height = this.canvas.clientHeight || this.canvas.parentElement.clientHeight;
     };
     window.addEventListener('resize', this._resizeHandler);
 
@@ -160,25 +260,39 @@ class CanvasEffectManager {
       } else if (this.paused) {
         this.paused = false;
         this._lastTime = performance.now();
+        this._lastFrameTime = this._lastTime;
         this._loop();
       }
     };
     document.addEventListener('visibilitychange', this._visHandler);
 
-    this._mouseHandler = (e) => { this.mouse.x = e.clientX - 65; this.mouse.y = e.clientY; };
+    this._mouseHandler = (e) => {
+      const r = this.canvas.getBoundingClientRect();
+      this.mouse.x = e.clientX - r.left;
+      this.mouse.y = e.clientY - r.top;
+    };
     window.addEventListener('mousemove', this._mouseHandler);
 
-    this._rclickDownHandler = (e) => { if (e.button === 2) this._rclick = true; };
-    this._rclickUpHandler = (e) => { if (e.button === 2) this._rclick = false; };
+    this._rclickDownHandler = (e) => {
+      if (e.button === 0) this._lclick = true;
+      if (e.button === 2) this._rclick = true;
+    };
+    this._rclickUpHandler = (e) => {
+      if (e.button === 0) this._lclick = false;
+      if (e.button === 2) this._rclick = false;
+    };
     this._contextMenuHandler = (e) => e.preventDefault();
     document.addEventListener('mousedown', this._rclickDownHandler);
     document.addEventListener('mouseup', this._rclickUpHandler);
     this.canvas.addEventListener('contextmenu', this._contextMenuHandler);
 
     this._lastTime = performance.now();
+    this._lastFrameTime = this._lastTime;
     this._time = 0;
 
     try {
+      this._refreshAccentColor();
+      this._refreshMutedColor();
       this._warmUp();
       this._init[name]?.call(this);
       this._loop();
@@ -193,6 +307,13 @@ class CanvasEffectManager {
     if (!ctx) return;
 
     const now = performance.now();
+    const frameDelta = now - this._lastFrameTime;
+    if (frameDelta < 33.3) {
+      this.animId = requestAnimationFrame(() => this._loop());
+      return;
+    }
+    this._lastFrameTime = now - (frameDelta % 33.3);
+
     const rawDt = (now - this._lastTime) / 16.667;
     const dt = Math.min(rawDt, 3);
     this._lastTime = now;
@@ -216,6 +337,7 @@ class CanvasEffectManager {
     if (this._rclickDownHandler) { document.removeEventListener('mousedown', this._rclickDownHandler); this._rclickDownHandler = null; }
     if (this._rclickUpHandler) { document.removeEventListener('mouseup', this._rclickUpHandler); this._rclickUpHandler = null; }
     if (this._contextMenuHandler) { this.canvas.removeEventListener('contextmenu', this._contextMenuHandler); this._contextMenuHandler = null; }
+    this._lclick = false;
     this._rclick = false;
     this._particles = [];
     this._meteors = [];
@@ -225,6 +347,8 @@ class CanvasEffectManager {
     this._redLines = [];
     this._glitchCells = [];
     this._cubes = [];
+    this._glitchFrame = 0;
+    this._charCache.clear();
     this.paused = false;
     this._time = 0;
     if (this.canvas && this.ctx) {
@@ -239,8 +363,8 @@ class CanvasEffectManager {
   _warmUp() {
     const name = this.currentEffect;
     if (['galactic', 'aurora', 'stars'].includes(name)) return;
-    for (let i = 0; i < 250; i++) {
-      this._draw[name]?.call(this, 1);
+    for (let i = 0; i < 70; i++) {
+      try { this._draw[name]?.call(this, 1); } catch (e) { break; }
     }
   }
 
@@ -268,7 +392,7 @@ class CanvasEffectManager {
       wobble: Math.random() * Math.PI * 2,
       wobbleAmp: 0.3 + Math.random() * 0.8,
       wobbleSpeed: 0.01 + Math.random() * 0.02,
-      opacity: 0, maxOpacity: 0.3 + Math.random() * 0.5, fadeIn: true
+      opacity: 0.3 + Math.random() * 0.5, maxOpacity: 0.3 + Math.random() * 0.5, fadeIn: false
     };
   }
 
@@ -280,8 +404,8 @@ class CanvasEffectManager {
       wobble: Math.random() * Math.PI * 2,
       wobbleAmp: 0.4 + Math.random() * 1.2,
       wobbleSpeed: 0.02 + Math.random() * 0.04,
-      opacity: 0.7 + Math.random() * 0.3,
-      life: 1, decay: 0.001 + Math.random() * 0.003
+      opacity: 0.8 + Math.random() * 0.2,
+      life: 1, decay: 0.002 + Math.random() * 0.003
     };
   }
 
@@ -297,7 +421,7 @@ class CanvasEffectManager {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.04,
       flipPhase: Math.random() * Math.PI * 2,
-      opacity: 0.35 + Math.random() * 0.5
+      opacity: 0.45 + Math.random() * 0.45
     };
   }
 
@@ -336,9 +460,9 @@ class CanvasEffectManager {
       y: Math.random() * this.canvas.height,
       z: 250 + Math.random() * 350,
       size: s,
-      vx: (Math.random() - 0.5) * 0.2,
-      vy: (Math.random() - 0.5) * 0.18,
-      vz: (Math.random() - 0.5) * 0.1,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.25,
+      vz: (Math.random() - 0.5) * 0.15,
       rx: Math.random() * Math.PI * 2,
       ry: Math.random() * Math.PI * 2,
       rz: Math.random() * Math.PI * 2,
@@ -357,7 +481,7 @@ class CanvasEffectManager {
     galactic() {
       this._particles = [];
       const chars = 'ᚠᚡᚢᚣᚤᚥᚦᚧᚨᚩᚪᚫᚬᚭᚮᚯᚰᚱᚲᚳᚴᚵᚶᚷᚸᚹᚺᚻᚼᚽᚾᚿᛀᛁᛂᛃᛄᛅᛆᛇᛈᛉᛊᛋᛌᛍᛎᛏᛐᛑᛒᛓᛔᛕᛖᛗᛘᛙᛚᛛᛜᛝᛞᛟ';
-      const count = Math.min(500, Math.floor(this.canvas.width / 4));
+      const count = Math.min(300, Math.floor(this.canvas.width / 8));
       for (let i = 0; i < count; i++) {
         this._particles.push({
           char: chars[Math.floor(Math.random() * chars.length)],
@@ -365,7 +489,7 @@ class CanvasEffectManager {
           y: Math.random() * this.canvas.height,
           speed: 0.5 + Math.random() * 2.0,
           size: 11 + Math.random() * 16,
-          opacity: 0.35 + Math.random() * 0.6,
+          opacity: 0.55 + Math.random() * 0.45,
           phase: Math.random() * Math.PI * 2
         });
       }
@@ -373,7 +497,7 @@ class CanvasEffectManager {
 
     void() {
       this._particles = [];
-      const count = Math.min(180, Math.floor(this.canvas.width * this.canvas.height / 5000));
+      const count = Math.min(150, Math.floor(this.canvas.width * this.canvas.height / 5000));
       for (let i = 0; i < count; i++) {
         this._particles.push(this._spawnVoid());
       }
@@ -386,7 +510,7 @@ class CanvasEffectManager {
 
     plexus() {
       this._particles = [];
-      const count = Math.min(160, Math.floor(this.canvas.width * this.canvas.height / 5000));
+      const count = Math.min(260, Math.floor(this.canvas.width * this.canvas.height / 5000));
       for (let i = 0; i < count; i++) {
         this._particles.push({
           x: Math.random() * this.canvas.width,
@@ -415,7 +539,7 @@ class CanvasEffectManager {
 
     fireflies() {
       this._particles = [];
-      const count = Math.min(200, Math.floor(this.canvas.width * this.canvas.height / 4500));
+      const count = Math.min(320, Math.floor(this.canvas.width * this.canvas.height / 4500));
       for (let i = 0; i < count; i++) {
         this._particles.push({
           x: Math.random() * this.canvas.width,
@@ -431,7 +555,7 @@ class CanvasEffectManager {
 
     snow() {
       this._particles = [];
-      const count = Math.min(280, Math.floor(this.canvas.width * this.canvas.height / 3000));
+      const count = Math.min(400, Math.floor(this.canvas.width * this.canvas.height / 3000));
       for (let i = 0; i < count; i++) {
         this._particles.push({
           x: Math.random() * this.canvas.width,
@@ -448,7 +572,7 @@ class CanvasEffectManager {
     stars() {
       this._particles = [];
       this._meteors = [];
-      const count = Math.min(420, Math.floor(this.canvas.width * this.canvas.height / 2200));
+      const count = Math.min(600, Math.floor(this.canvas.width * this.canvas.height / 2200));
       for (let i = 0; i < count; i++) {
         this._particles.push({
           x: Math.random() * this.canvas.width,
@@ -462,7 +586,7 @@ class CanvasEffectManager {
 
     embers() {
       this._embers = [];
-      const count = Math.min(220, Math.floor(this.canvas.width / 6));
+      const count = Math.min(170, Math.floor(this.canvas.width / 6));
       for (let i = 0; i < count; i++) {
         const p = this._spawnEmber();
         p.x = Math.random() * this.canvas.width;
@@ -473,7 +597,7 @@ class CanvasEffectManager {
 
     petals() {
       this._petals = [];
-      const count = Math.min(20, Math.floor(this.canvas.width * this.canvas.height / 6000));
+      const count = Math.min(30, Math.floor(this.canvas.width * this.canvas.height / 6000));
       for (let i = 0; i < count; i++) {
         const p = this._spawnPetal();
         p.x = Math.random() * this.canvas.width;
@@ -484,10 +608,11 @@ class CanvasEffectManager {
 
     bubbles() {
       this._bubbles = [];
-      const count = Math.min(17, Math.floor(this.canvas.width / 80));
+      const count = Math.min(35, Math.floor(this.canvas.width / 30));
       for (let i = 0; i < count; i++) {
         const p = this._spawnBubble();
         p.x = Math.random() * this.canvas.width;
+        p.y = Math.random() * this.canvas.height * 2;
         this._bubbles.push(p);
       }
     },
@@ -534,7 +659,7 @@ class CanvasEffectManager {
       };
       document.addEventListener('click', this._clickHandler);
 
-      for (let i = 0; i < 16; i++) {
+      for (let i = 0; i < 32; i++) {
         const horiz = Math.random() < 0.5;
         this._redLines.push(spawnLine(
           0,
@@ -551,7 +676,7 @@ class CanvasEffectManager {
 
     cubes() {
       this._cubes = [];
-      const count = Math.min(15, Math.floor(this.canvas.width / 100));
+      const count = Math.min(30, Math.floor(this.canvas.width / 50));
       for (let i = 0; i < count; i++) {
         this._cubes.push(this._spawnCube());
       }
@@ -586,22 +711,26 @@ class CanvasEffectManager {
 
     galactic() {
       const { canvas, ctx } = this;
-      const c = this.getAccentRGB();
       const SECTORS = 6;
+      const cache = this._charCache;
       for (const p of this._particles) {
         p.y += p.speed;
-        p.phase += 0.02;
+        p.phase += 0.04;
         if (p.y > canvas.height + 20) {
           const sector = this._findLeastPopulatedSector(this._particles, SECTORS);
           const w = canvas.width / SECTORS;
           p.x = sector * w + Math.random() * w;
           p.y = -20;
         }
-        const flicker = 0.55 + Math.sin(p.phase) * 0.45;
-        ctx.globalAlpha = p.opacity * flicker;
-        ctx.font = `${p.size}px monospace`;
-        ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
-        ctx.fillText(p.char, p.x, p.y);
+        const flicker = 0.7 + Math.sin(p.phase) * 0.3;
+        const a = p.opacity * flicker;
+        if (a > 0.01) {
+          const tex = cache.get(p.char);
+          if (tex) {
+            ctx.globalAlpha = a;
+            ctx.drawImage(tex, p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+          }
+        }
       }
       ctx.globalAlpha = 1;
     },
@@ -614,34 +743,34 @@ class CanvasEffectManager {
         p.y -= p.speed;
         p.wobble += p.wobbleSpeed;
         p.x += Math.sin(p.wobble) * p.wobbleAmp;
-        if (p.fadeIn) {
-          p.opacity = Math.min(p.opacity + 0.008, p.maxOpacity);
-          if (p.opacity >= p.maxOpacity) p.fadeIn = false;
-        }
         if (p.y < -10) p.opacity -= 0.02;
         if (p.opacity <= 0) { this._particles[i] = this._spawnVoid(); continue; }
         ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},${p.opacity})`;
         ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
       }
-      if (Math.random() < 0.15 && this._particles.length < 200) {
+      if (Math.random() < 0.15 && this._particles.length < 150) {
         this._particles.push(this._spawnVoid());
       }
     },
 
     plexus() {
       const { canvas, ctx } = this;
-      const c = this.getAccentRGB();
+      const c = this._accentColor;
       const maxDist = 150, mouseRadius = 100;
+      const maxDistSq = maxDist * maxDist;
+      const mouseRadiusSq = mouseRadius * mouseRadius;
       for (const p of this._particles) {
         const dxM = p.x - this.mouse.x, dyM = p.y - this.mouse.y;
-        const distM = Math.hypot(dxM, dyM);
-        if (distM < mouseRadius && distM > 0) {
+        const distMSq = dxM * dxM + dyM * dyM;
+        if (this._lclick && distMSq < mouseRadiusSq && distMSq > 0) {
+          const distM = Math.sqrt(distMSq);
           const force = (mouseRadius - distM) / mouseRadius * 0.5;
           p.vx += (dxM / distM) * force;
           p.vy += (dyM / distM) * force;
         }
-        if (this._rclick && distM > 1) {
-          const pull = 0.03;
+        if (this._rclick && distMSq < mouseRadiusSq && distMSq > 0) {
+          const distM = Math.sqrt(distMSq);
+          const pull = (mouseRadius - distM) / mouseRadius * 0.04;
           p.vx -= (dxM / distM) * pull;
           p.vy -= (dyM / distM) * pull;
         }
@@ -652,27 +781,49 @@ class CanvasEffectManager {
         if (p.y < 0) { p.y = 0; p.vy *= -0.5; }
         if (p.y > canvas.height) { p.y = canvas.height; p.vy *= -0.5; }
       }
-      for (let i = 0; i < this._particles.length; i++) {
-        for (let j = i + 1; j < this._particles.length; j++) {
-          const a = this._particles[i], b = this._particles[j];
+      const particles = this._particles;
+      const len = particles.length;
+      const buckets = new Map();
+      for (let i = 0; i < len; i++) {
+        const a = particles[i];
+        for (let j = i + 1; j < len; j++) {
+          const b = particles[j];
           const dx = a.x - b.x, dy = a.y - b.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < maxDist) {
-            const alpha = (1 - dist / maxDist) * 0.55;
-            ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
-            ctx.lineWidth = 0.7;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
+          const distSq = dx * dx + dy * dy;
+          if (distSq < maxDistSq) {
+            const d = Math.sqrt(distSq);
+            const alpha = (1 - d / maxDist) * 0.55;
+            const bucket = (alpha * 20 | 0) / 20;
+            let arr = buckets.get(bucket);
+            if (!arr) { arr = []; buckets.set(bucket, arr); }
+            arr.push(a.x, a.y, b.x, b.y);
           }
         }
       }
-      for (const p of this._particles) {
+      ctx.lineWidth = 0.7;
+      for (const [alpha, coords] of buckets) {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = this.rgba(0.6);
-        ctx.fill();
+        ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
+        for (let k = 0; k < coords.length; k += 4) {
+          ctx.moveTo(coords[k], coords[k + 1]);
+          ctx.lineTo(coords[k + 2], coords[k + 3]);
+        }
+        ctx.stroke();
+      }
+      const dotTex = this._accentDot;
+      if (dotTex) {
+        ctx.globalAlpha = 0.6;
+        for (const p of particles) {
+          ctx.drawImage(dotTex, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        for (const p of particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = this.rgba(0.6);
+          ctx.fill();
+        }
       }
     },
 
@@ -702,11 +853,9 @@ class CanvasEffectManager {
 
     fireflies() {
       const { canvas, ctx } = this;
-      const c = this.getAccentRGB();
       const t = Date.now() * 0.001;
-      ctx.save();
-      ctx.shadowBlur = 18;
-      ctx.shadowColor = `rgba(${c.r},${c.g},${c.b},0.6)`;
+      const tex = this._accentGlow;
+      if (!tex) return;
       for (const p of this._particles) {
         p.x += p.vx; p.y += p.vy;
         if (Math.random() < 0.012) {
@@ -719,24 +868,20 @@ class CanvasEffectManager {
         if (p.y < 0) p.y = canvas.height;
         if (p.y > canvas.height) p.y = 0;
         const alpha = 0.15 + (Math.sin(t * p.pulseSpeed + p.phase) + 1) * 0.42;
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-        grad.addColorStop(0, `rgba(${c.r},${c.g},${c.b},${alpha})`);
-        grad.addColorStop(0.35, `rgba(${c.r},${c.g},${c.b},${alpha * 0.5})`);
-        grad.addColorStop(1, 'transparent');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(tex, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
       }
-      ctx.restore();
+      ctx.globalAlpha = 1;
     },
 
     // ======================== SNOW (sector control) ========================
     snow() {
       const { canvas, ctx } = this;
       const SECTORS = 6;
+      const tex = this._whiteDot;
+      if (!tex) return;
 
-      if (Math.random() < 0.3 && this._particles.length < 300) {
+      if (Math.random() < 0.3 && this._particles.length < 400) {
         const sector = this._findLeastPopulatedSector(this._particles, SECTORS);
         const w = canvas.width / SECTORS;
         const p = this._spawnSnowflake();
@@ -757,11 +902,10 @@ class CanvasEffectManager {
           p.y = -5;
           p.opacity = 0.25 + Math.random() * 0.6;
         }
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${p.opacity})`;
-        ctx.fill();
+        ctx.globalAlpha = p.opacity;
+        ctx.drawImage(tex, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
       }
+      ctx.globalAlpha = 1;
     },
 
 
@@ -769,13 +913,17 @@ class CanvasEffectManager {
     stars() {
       const { canvas, ctx } = this;
       const t = Date.now() * 0.001;
+      const tex = this._whiteDot;
+      if (!tex) return;
       for (const s of this._particles) {
         const opacity = 0.3 + Math.sin(t * s.speed + s.phase) * 0.3;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${Math.max(0, opacity)})`;
-        ctx.fill();
+        const a = Math.max(0, opacity);
+        if (a > 0.01) {
+          ctx.globalAlpha = a;
+          ctx.drawImage(tex, s.x - s.r, s.y - s.r, s.r * 2, s.r * 2);
+        }
       }
+      ctx.globalAlpha = 1;
       if (Math.random() < 0.012 && this._meteors.length < 4) {
         this._meteors.push({
           x: Math.random() * canvas.width * 0.8,
@@ -791,7 +939,7 @@ class CanvasEffectManager {
         m.x += Math.cos(m.angle) * m.speed;
         m.y += Math.sin(m.angle) * m.speed;
         m.life -= 0.015;
-        if (m.life <= 0) { this._meteors.splice(i, 1); continue; }
+        if (m.life <= 0) { this._meteors[i] = this._meteors[this._meteors.length - 1]; this._meteors.pop(); continue; }
         const tailX = m.x - Math.cos(m.angle) * m.len;
         const tailY = m.y - Math.sin(m.angle) * m.len;
         const grad = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
@@ -813,10 +961,10 @@ class CanvasEffectManager {
     // ======================== EMBERS (sector control) ========================
     embers() {
       const { canvas, ctx } = this;
-      const c = this.getAccentRGB();
       const SECTORS = 6;
+      const tex = this._emberGlow;
 
-      if (Math.random() < 0.3 && this._embers.length < 250) {
+      if (Math.random() < 0.4 && this._embers.length < 170) {
         const sector = this._findLeastPopulatedSector(this._embers, SECTORS);
         const w = canvas.width / SECTORS;
         const p = this._spawnEmber();
@@ -841,18 +989,26 @@ class CanvasEffectManager {
           continue;
         }
         const fadeAlpha = p.opacity * Math.pow(p.life, 0.6);
-        const r = Math.min(255, c.r + 40);
-        const g = Math.min(255, Math.round(c.g * 0.5 + 60));
-        const b = Math.round(c.b * 0.2);
-        ctx.save();
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = `rgba(${r},${g},${b},${fadeAlpha * 0.7})`;
-        ctx.fillStyle = `rgba(${r},${g},${b},${fadeAlpha})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        if (tex) {
+          const sz = p.size * 2;
+          ctx.globalAlpha = fadeAlpha;
+          ctx.drawImage(tex, p.x - p.size, p.y - p.size, sz, sz);
+        } else {
+          const c = this._accentColor;
+          const r = Math.min(255, c.r + 40);
+          const g = Math.min(255, Math.round(c.g * 0.5 + 60));
+          const b = Math.round(c.b * 0.2);
+          ctx.save();
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = `rgba(${r},${g},${b},${fadeAlpha * 0.7})`;
+          ctx.fillStyle = `rgba(${r},${g},${b},${fadeAlpha})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
       }
+      ctx.globalAlpha = 1;
     },
 
     // ======================== PETALS (sinusoidal sway + pseudo-3D flip) ========================
@@ -860,7 +1016,7 @@ class CanvasEffectManager {
       const { canvas, ctx } = this;
       const c = this.getAccentRGB();
 
-      if (Math.random() < 0.05 && this._petals.length < 20) {
+      if (Math.random() < 0.15 && this._petals.length < 30) {
         const p = this._spawnPetal();
         p.x = Math.random() * canvas.width;
         this._petals.push(p);
@@ -878,10 +1034,8 @@ class CanvasEffectManager {
         const flipX = Math.cos(p.flipPhase);
 
         if (this._isOutOfBounds(p, 30)) {
-          const np = this._spawnPetal();
-          np.x = Math.random() * canvas.width;
-          np.y = -20;
-          this._petals[i] = np;
+          p.x = Math.random() * canvas.width;
+          p.y = -20;
           continue;
         }
         ctx.save();
@@ -905,26 +1059,18 @@ class CanvasEffectManager {
       const { canvas, ctx } = this;
       const c = this.getAccentRGB();
 
-      if (Math.random() < 0.2 && this._bubbles.length < 17) {
-        const p = this._spawnBubble();
-        p.x = Math.random() * canvas.width;
-        this._bubbles.push(p);
-      }
-
       for (let i = this._bubbles.length - 1; i >= 0; i--) {
         const p = this._bubbles[i];
         p.y += p.vy;
         p.x += Math.sin(this._time * 0.02 + p.wobble) * 0.4;
-        if (this._isOutOfBounds(p, p.r * 2)) {
-          const np = this._spawnBubble();
-          np.x = Math.random() * canvas.width;
-          this._bubbles[i] = np;
-          continue;
+        if (p.y < -p.r * 2) {
+          p.y = canvas.height + p.r;
+          p.x = Math.random() * canvas.width;
         }
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${p.opacity})`;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.8;
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(p.x - p.r * 0.25, p.y - p.r * 0.25, p.r * 0.2, 0, Math.PI * 2);
@@ -941,7 +1087,7 @@ class CanvasEffectManager {
       const GRID_BG = 30;
 
       // --- Фоновая сетка: один stroke для всех линий ---
-      const mutedHex = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+      const mutedHex = this._mutedColor;
       ctx.save();
       ctx.strokeStyle = mutedHex;
       ctx.globalAlpha = 0.02;
@@ -959,7 +1105,7 @@ class CanvasEffectManager {
       ctx.restore();
 
       // --- Спавн новых линий ---
-      if (Math.random() < 0.15 && this._redLines.length < 60) {
+      if (Math.random() < 0.15 && this._redLines.length < 120) {
         const horiz = Math.random() < 0.5;
         const pos = horiz
           ? Math.round(Math.random() * canvas.height / GRID) * GRID
@@ -997,7 +1143,8 @@ class CanvasEffectManager {
           : line.coord < -20;
 
         if (line.life <= 0 || outOfBounds) {
-          this._redLines.splice(i, 1);
+          this._redLines[i] = this._redLines[this._redLines.length - 1];
+          this._redLines.pop();
           continue;
         }
 
@@ -1041,13 +1188,14 @@ class CanvasEffectManager {
       for (let i = this._glitchCells.length - 1; i >= 0; i--) {
         this._glitchCells[i].ticksLeft--;
         if (this._glitchCells[i].ticksLeft <= 0) {
-          this._glitchCells.splice(i, 1);
+          this._glitchCells[i] = this._glitchCells[this._glitchCells.length - 1];
+          this._glitchCells.pop();
         }
       }
 
       // Раз в 8 кадров: спавн новых
       if (this._glitchFrame % 8 === 0) {
-        const count = 30 + Math.floor(Math.random() * 20);
+        const count = 60 + Math.floor(Math.random() * 40);
         for (let i = 0; i < count; i++) {
           this._glitchCells.push(this._spawnGlitchCell());
         }
@@ -1076,7 +1224,7 @@ class CanvasEffectManager {
         [0,4],[1,5],[2,6],[3,7]
       ];
 
-      this._applySoftRepulsion(this._cubes, 150, 0.05);
+      this._applySoftRepulsion(this._cubes, 180, 0.03);
 
       for (let i = 0; i < this._cubes.length; i++) {
         const cube = this._cubes[i];
@@ -1099,10 +1247,6 @@ class CanvasEffectManager {
         cube.ry += cube.vry;
         cube.rz += cube.vrz;
 
-        cube.vx *= 0.98;
-        cube.vy *= 0.98;
-        cube.vz *= 0.99;
-
         const margin = cube.size;
         if (cube.x < -margin) cube.x += canvas.width + margin * 2;
         if (cube.x > canvas.width + margin) cube.x -= canvas.width + margin * 2;
@@ -1112,33 +1256,42 @@ class CanvasEffectManager {
         if (cube.z > 700) cube.z = 80;
 
         const s = cube.size;
-        const verts3d = [
-          [-s, -s, -s], [ s, -s, -s], [ s,  s, -s], [-s,  s, -s],
-          [-s, -s,  s], [ s, -s,  s], [ s,  s,  s], [-s,  s,  s]
-        ];
+        const v = this._cubeVerts;
+        v[0][0] = -s; v[0][1] = -s; v[0][2] = -s;
+        v[1][0] =  s; v[1][1] = -s; v[1][2] = -s;
+        v[2][0] =  s; v[2][1] =  s; v[2][2] = -s;
+        v[3][0] = -s; v[3][1] =  s; v[3][2] = -s;
+        v[4][0] = -s; v[4][1] = -s; v[4][2] =  s;
+        v[5][0] =  s; v[5][1] = -s; v[5][2] =  s;
+        v[6][0] =  s; v[6][1] =  s; v[6][2] =  s;
+        v[7][0] = -s; v[7][1] =  s; v[7][2] =  s;
 
         const cosX = Math.cos(cube.rx), sinX = Math.sin(cube.rx);
         const cosY = Math.cos(cube.ry), sinY = Math.sin(cube.ry);
         const cosZ = Math.cos(cube.rz), sinZ = Math.sin(cube.rz);
 
-        const projected = verts3d.map(([vx, vy, vz]) => {
+        const proj = this._cubeProjected;
+        for (let vi = 0; vi < 8; vi++) {
+          const vx = v[vi][0], vy = v[vi][1], vz = v[vi][2];
           let x1 = vx, y1 = vy * cosX - vz * sinX, z1 = vy * sinX + vz * cosX;
           let x2 = x1 * cosY + z1 * sinY, y2 = y1, z2 = -x1 * sinY + z1 * cosY;
           let x3 = x2 * cosZ - y2 * sinZ, y3 = x2 * sinZ + y2 * cosZ, z3 = z2;
           const z = z3 + cube.z;
           const scale = perspective / (perspective + z);
-          return { x: cube.x + x3 * scale, y: cube.y + y3 * scale, scale };
-        });
+          proj[vi].x = cube.x + x3 * scale;
+          proj[vi].y = cube.y + y3 * scale;
+          proj[vi].scale = scale;
+        }
 
         ctx.save();
         ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${cube.opacity})`;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2.0;
         ctx.shadowBlur = 10;
         ctx.shadowColor = `rgba(${c.r},${c.g},${c.b},${cube.opacity * 0.6})`;
         ctx.beginPath();
         for (const [a, b] of edges) {
-          ctx.moveTo(projected[a].x, projected[a].y);
-          ctx.lineTo(projected[b].x, projected[b].y);
+          ctx.moveTo(proj[a].x, proj[a].y);
+          ctx.lineTo(proj[b].x, proj[b].y);
         }
         ctx.stroke();
         ctx.restore();

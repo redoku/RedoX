@@ -75,6 +75,7 @@ function formatSize(bytes) {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
+let _logScrollPending = false;
 function addLog(text) {
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
@@ -87,7 +88,13 @@ function addLog(text) {
   const box = $('#log-box');
   if (box) {
     box.textContent = state.logLines.join('\n');
-    box.scrollTop = box.scrollHeight;
+    if (!_logScrollPending) {
+      _logScrollPending = true;
+      requestAnimationFrame(() => {
+        box.scrollTop = box.scrollHeight;
+        _logScrollPending = false;
+      });
+    }
   }
 }
 
@@ -1693,9 +1700,16 @@ function initThemePicker() {
     setFromHueClick(e);
   });
 
+  let _pickerRafPending = false;
   document.addEventListener('mousemove', (e) => {
-    if (draggingSV) setFromSVClick(e);
-    if (draggingHue) setFromHueClick(e);
+    if (!draggingSV && !draggingHue) return;
+    if (_pickerRafPending) return;
+    _pickerRafPending = true;
+    requestAnimationFrame(() => {
+      if (draggingSV) setFromSVClick(e);
+      if (draggingHue) setFromHueClick(e);
+      _pickerRafPending = false;
+    });
   });
 
   document.addEventListener('mouseup', () => {
@@ -2216,9 +2230,6 @@ function initButtons() {
   if (btnExpandLog) {
     btnExpandLog.addEventListener('click', () => window.api.openLogWindow());
   }
-
-  // When log window closes, restore button state
-  window.api.onLogWindowClosed(() => {});
 }
 
 // ============================================================
@@ -2316,6 +2327,9 @@ function renderModrinthResults(hits, append) {
   const canInstall = loader !== 'vanilla';
 
   state.modrinthHits = append ? [...state.modrinthHits, ...hits] : hits;
+  if (state.modrinthHits.length > 200) {
+    state.modrinthHits = state.modrinthHits.slice(-200);
+  }
 
   const hasMore = state.modrinthHits.length < state.modrinthTotal;
   if (loadMoreBtn) {
@@ -2474,8 +2488,16 @@ function initModrinth() {
     });
   }
 
-  // Event delegation: one handler for ALL .btn-install clicks on the grid
+  // Event delegation: one handler for ALL clicks on the grid
   grid.addEventListener('click', async (e) => {
+    const link = e.target.closest('.addon-site-link');
+    if (link) {
+      e.preventDefault();
+      const url = link.dataset.url;
+      if (url) window.api.openExternalUrl(url);
+      return;
+    }
+
     const btn = e.target.closest('.btn-install');
     if (!btn || btn.disabled) return;
 
@@ -2533,15 +2555,6 @@ function initModrinth() {
         btn.textContent = 'Установить';
       }
     }
-  });
-
-  // Site links delegation
-  grid.addEventListener('click', (e) => {
-    const link = e.target.closest('.addon-site-link');
-    if (!link) return;
-    e.preventDefault();
-    const url = link.dataset.url;
-    if (url) window.api.openExternalUrl(url);
   });
 
   updateModrinthProfileInfo();
